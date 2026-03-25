@@ -1,0 +1,303 @@
+import { useMemo, useState } from 'react'
+import { useScheduler } from '../../context/SchedulerContext'
+import { ParallelCard } from './ParallelCard'
+import type { SubjectResult } from '../../types'
+
+export interface ParallelUnit {
+  teorico: SubjectResult | null
+  practicos: SubjectResult[]
+}
+
+interface SubjectGroup {
+  code: string
+  name: string
+  units: ParallelUnit[] // Replaces flat parallels
+}
+
+export function SubjectList() {
+  const { state, dispatch } = useScheduler()
+  const groups = useMemo<SubjectGroup[]>(() => {
+    if (state.searchMode === 'available') {
+      return state.availableSubjects.map(s => {
+        const code = s.cod_materia_acad.trim().toUpperCase()
+        const parallels = state.searchResults.filter(r => r.codigomateria.trim().toUpperCase() === code)
+        
+        // Group theoreticals and practicals for this specific subject
+        const teoricos = parallels.filter(p => p.tipoparalelo === 'TEORICO')
+        const practicos = parallels.filter(p => p.tipoparalelo === 'PRACTICO')
+
+        const units: ParallelUnit[] = []
+        const usedPracticos = new Set<string>()
+
+        for (const t of teoricos) {
+          const associated = practicos.filter(p => p.paralelo % 100 === t.paralelo)
+          associated.forEach(p => usedPracticos.add(`${p.codigomateria}-${p.paralelo}`))
+          units.push({
+            teorico: t,
+            practicos: associated.sort((a, b) => a.paralelo - b.paralelo),
+          })
+        }
+        const orphanPracticos = practicos.filter(p => !usedPracticos.has(`${p.codigomateria}-${p.paralelo}`))
+        orphanPracticos.forEach(p => {
+          units.push({ teorico: null, practicos: [p] })
+        })
+
+        units.sort((a, b) => {
+          const p1 = a.teorico?.paralelo ?? a.practicos[0]?.paralelo ?? 0
+          const p2 = b.teorico?.paralelo ?? b.practicos[0]?.paralelo ?? 0
+          return p1 - p2
+        })
+
+        return {
+          code,
+          name: s.nombre_materia,
+          units
+        }
+      })
+    }
+
+    const map = new Map<string, { code: string; name: string; parallels: SubjectResult[] }>()
+    const query = state.searchQuery.trim().toUpperCase()
+    
+    // Filter results only if we have a query in search mode
+    const filteredResults = state.searchMode === 'search' && query
+      ? state.searchResults.filter(r => 
+          r.codigomateria.trim().toUpperCase().includes(query) || 
+          r.nombre.trim().toUpperCase().includes(query)
+        )
+      : state.searchResults
+
+    for (const r of filteredResults) {
+      const key = `${r.codigomateria}`
+      if (!map.has(key)) {
+        map.set(key, { code: r.codigomateria, name: r.nombre, parallels: [] })
+      }
+      const subjectGroup = map.get(key)!
+      // Evitar duplicados exactos en los resultados
+      const isDup = subjectGroup.parallels.some(p => p.paralelo === r.paralelo && p.tipoparalelo === r.tipoparalelo)
+      if (!isDup) {
+        subjectGroup.parallels.push(r)
+      }
+    }
+
+    // Group theoreticals and practicals
+    return Array.from(map.values()).map(group => {
+      const teoricos = group.parallels.filter(p => p.tipoparalelo === 'TEORICO')
+      const practicos = group.parallels.filter(p => p.tipoparalelo === 'PRACTICO')
+
+      const units: ParallelUnit[] = []
+      const usedPracticos = new Set<string>()
+
+      for (const t of teoricos) {
+        // Find practicals (n + 100, n + 200, etc)
+        const associated = practicos.filter(
+          p => p.paralelo % 100 === t.paralelo
+        )
+        associated.forEach(p => usedPracticos.add(`${p.codigomateria}-${p.paralelo}`))
+
+        units.push({
+          teorico: t,
+          practicos: associated.sort((a, b) => a.paralelo - b.paralelo),
+        })
+      }
+
+      // Add standalone practicals if any exist without theoretical
+      const orphanPracticos = practicos.filter(p => !usedPracticos.has(`${p.codigomateria}-${p.paralelo}`))
+      orphanPracticos.forEach(p => {
+        units.push({ teorico: null, practicos: [p] })
+      })
+
+      // Sort units by theoretical parallel number
+      units.sort((a, b) => {
+        const p1 = a.teorico?.paralelo ?? a.practicos[0]?.paralelo ?? 0
+        const p2 = b.teorico?.paralelo ?? b.practicos[0]?.paralelo ?? 0
+        return p1 - p2
+      })
+
+      return {
+        code: group.code,
+        name: group.name,
+        units,
+      }
+    })
+  }, [state.searchResults, state.availableSubjects, state.searchMode])
+
+  if (state.loadingSearch || state.loadingAvailable) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 gap-3">
+        <div className="w-8 h-8 border-3 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
+        <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Buscando...</p>
+      </div>
+    )
+  }
+
+  if (state.errorSearch) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-xs font-medium">
+        <p>⚠ {state.errorSearch}</p>
+      </div>
+    )
+  }
+
+  if (groups.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center px-6">
+        <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center mb-4 text-zinc-300">
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+        </div>
+        <p className="text-zinc-400 font-bold text-sm">Sin resultados</p>
+        <p className="text-zinc-300 text-xs mt-1">Ingresa una matrícula o busca por nombre</p>
+      </div>
+    )
+  }
+
+  const renderBreadcrumb = () => {
+    if (state.searchMode !== 'search' || state.availableSubjects.length === 0) return null
+    // Solo mostramos volver atrás si tenemos materias disponibles cargadas
+    return (
+      <div className="mb-4">
+        <button
+          onClick={() => {
+            dispatch({ type: 'SET_SEARCH_MODE', payload: 'available' })
+            dispatch({ type: 'SET_SEARCH_RESULTS', payload: [] })
+            dispatch({ type: 'SET_SEARCH_QUERY', payload: '' })
+          }}
+          className="cursor-pointer text-[10px] font-black bg-blue-600 hover:bg-blue-700 text-blue-50 px-3 py-1.5 rounded-lg uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95"
+        >
+          <span>←</span> Volver a mis materias
+        </button>
+      </div>
+    )
+  }
+
+  // Vista 1: Mostrando lista de materias (available) o resultados múltiples de búsqueda
+  if (state.searchMode === 'available' || (state.searchMode === 'search' && Boolean(state.searchQuery) && groups.length > 1)) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        {renderBreadcrumb()}
+        <div className="space-y-4 overflow-y-auto flex-1 pr-1 pb-4">
+          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Mis Materias Disponibles</p>
+          {groups.map((group) => (
+            <SubjectItem key={group.code} group={group} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Vista 2: Mostrando paralelos de una materia específica (Search Result)
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {renderBreadcrumb()}
+      <div className="space-y-4 overflow-y-auto flex-1 pr-1 pb-4">
+        {groups.map((group, groupIndex) => (
+          <SubjectDetail key={group.code} group={group} groupIndex={groupIndex} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SubjectItem({ group }: { group: SubjectGroup }) {
+  const { state, dispatch } = useScheduler()
+
+  const handleSelectSubject = async () => {
+    dispatch({ type: 'SET_SEARCH_QUERY', payload: group.code })
+    dispatch({ type: 'SET_LOADING_SEARCH', payload: true })
+    dispatch({ type: 'SET_ERROR_SEARCH', payload: null })
+    dispatch({ type: 'SET_SEARCH_MODE', payload: 'search' })
+    
+    // If parallels are already in searchResults, don't fetch again
+    const alreadyLoaded = state.searchResults.some(r => r.codigomateria.trim().toUpperCase() === group.code.trim().toUpperCase())
+    if (alreadyLoaded) {
+      dispatch({ type: 'SET_LOADING_SEARCH', payload: false })
+      return
+    }
+
+    dispatch({ type: 'SET_LOADING_SEARCH', payload: true })
+    try {
+      const { api } = await import('../../services/api')
+      const results = await api.searchSubject(group.code, 1)
+      dispatch({ type: 'SET_SEARCH_RESULTS', payload: results })
+    } catch (e) {
+      dispatch({ type: 'SET_ERROR_SEARCH', payload: (e as Error).message })
+    } finally {
+      dispatch({ type: 'SET_LOADING_SEARCH', payload: false })
+    }
+  }
+
+  return (
+    <button
+      onClick={handleSelectSubject}
+      className="w-full text-left group bg-zinc-900 hover:bg-zinc-800/50 border border-zinc-800 hover:border-blue-900/50 transition-all cursor-pointer py-4 px-5 rounded-2xl flex flex-col gap-1"
+    >
+      <span className="text-[10px] font-bold text-zinc-600 group-hover:text-blue-500 transition-colors uppercase tracking-widest leading-none">{group.code}</span>
+      <span className="text-sm font-extrabold text-white transition-colors leading-tight">{group.name}</span>
+    </button>
+  )
+}
+
+function SubjectDetail({ group, groupIndex }: { group: SubjectGroup; groupIndex: number }) {
+  const [sortMode] = useState<'numero' | 'profesor'>('numero')
+
+  const sortedUnits = useMemo(() => {
+    const units = [...group.units]
+    if (sortMode === 'profesor') {
+      units.sort((a, b) => {
+        // En los resultados de búsqueda, el profesor suele venir en `profesor` del teórico
+        const pA = a.teorico?.profesor ?? a.practicos[0]?.profesor ?? ''
+        const pB = b.teorico?.profesor ?? b.practicos[0]?.profesor ?? ''
+        // Si no hay profe, al fondo
+        if (!pA) return 1
+        if (!pB) return -1
+        return pA.localeCompare(pB)
+      })
+    } else {
+      // Por numero (default)
+      units.sort((a, b) => {
+        const p1 = a.teorico?.paralelo ?? a.practicos[0]?.paralelo ?? 0
+        const p2 = b.teorico?.paralelo ?? b.practicos[0]?.paralelo ?? 0
+        return p1 - p2
+      })
+    }
+    return units
+  }, [group.units, sortMode])
+
+  return (
+    <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-right-4 duration-200">
+      <div className="flex flex-col px-1 gap-0.5">
+        <h3 className="text-[11px] font-medium text-blue-500 uppercase tracking-[5%]">{group.code}</h3>
+        <h2 className="text-2xl font-bold text-white leading-tight tracking-tight">{group.name}</h2>
+      </div>
+
+      {group.units.length > 0 ? (
+        <div className="space-y-3">
+          {/* <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-zinc-400">Ordenar por:</label>
+              <select
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value as 'numero' | 'profesor')}
+                className="bg-zinc-800 border border-zinc-700 text-xs text-white rounded px-2 py-1 outline-none focus:border-zinc-500"
+              >
+                <option value="numero">Número Paralelo</option>
+                <option value="profesor">Profesor</option>
+              </select>
+            </div>
+          </div> */}
+          <div className="space-y-2">
+            {sortedUnits.map((u) => (
+              <ParallelCard
+                key={`${u.teorico?.paralelo}-${u.practicos[0]?.paralelo}`}
+                unit={u}
+                subjectIndex={groupIndex}
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-zinc-500 italic px-1">No se encontraron paralelos.</p>
+      )}
+    </div>
+  )
+}
