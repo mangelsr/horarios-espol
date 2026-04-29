@@ -16,12 +16,13 @@ interface SubjectGroup {
 
 export function SubjectList() {
   const { state, dispatch } = useScheduler()
+  const [filterText, setFilterText] = useState('')
   const groups = useMemo<SubjectGroup[]>(() => {
     if (state.searchMode === 'available') {
       return state.availableSubjects.map(s => {
         const code = s.cod_materia_acad.trim().toUpperCase()
         const parallels = state.searchResults.filter(r => r.codigomateria.trim().toUpperCase() === code)
-        
+
         // Group theoreticals and practicals for this specific subject
         const teoricos = parallels.filter(p => p.tipoparalelo === 'TEORICO')
         const practicos = parallels.filter(p => p.tipoparalelo === 'PRACTICO')
@@ -58,13 +59,13 @@ export function SubjectList() {
 
     const map = new Map<string, { code: string; name: string; parallels: SubjectResult[] }>()
     const query = state.searchQuery.trim().toUpperCase()
-    
+
     // Filter results only if we have a query in search mode
     const filteredResults = state.searchMode === 'search' && query
-      ? state.searchResults.filter(r => 
-          r.codigomateria.trim().toUpperCase().includes(query) || 
-          r.nombre.trim().toUpperCase().includes(query)
-        )
+      ? state.searchResults.filter(r =>
+        r.codigomateria.trim().toUpperCase().includes(query) ||
+        r.nombre.trim().toUpperCase().includes(query)
+      )
       : state.searchResults
 
     for (const r of filteredResults) {
@@ -122,6 +123,15 @@ export function SubjectList() {
     })
   }, [state.searchResults, state.availableSubjects, state.searchMode])
 
+  const filteredGroups = useMemo(() => {
+    if (!filterText.trim()) return groups
+    const lower = filterText.toLowerCase()
+    return groups.filter(g =>
+      g.code.toLowerCase().includes(lower) ||
+      g.name.toLowerCase().includes(lower)
+    )
+  }, [groups, filterText])
+
   if (state.loadingSearch || state.loadingAvailable) {
     return (
       <div className="flex flex-col items-center justify-center py-10 gap-3">
@@ -173,11 +183,20 @@ export function SubjectList() {
   // Vista 1: Mostrando lista de materias (available) o resultados múltiples de búsqueda
   if (state.searchMode === 'available' || (state.searchMode === 'search' && Boolean(state.searchQuery) && groups.length > 1)) {
     return (
-      <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex flex-col h-full max-h-[60vh] overflow-hidden">
         {renderBreadcrumb()}
-        <div className="space-y-4 overflow-y-auto flex-1 pr-1 pb-4">
-          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Mis Materias Disponibles</p>
-          {groups.map((group) => (
+        <div className="space-y-4 overflow-y-auto flex-1 pr-2 pb-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700">
+          <div className="flex flex-col gap-2 ml-1">
+            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Mis Materias Disponibles</p>
+            <input
+              type="text"
+              placeholder="Filtrar materias..."
+              value={filterText}
+              onChange={e => setFilterText(e.target.value)}
+              className="bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-zinc-700 transition-all"
+            />
+          </div>
+          {filteredGroups.map((group) => (
             <SubjectItem key={group.code} group={group} />
           ))}
         </div>
@@ -187,9 +206,9 @@ export function SubjectList() {
 
   // Vista 2: Mostrando paralelos de una materia específica (Search Result)
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full max-h-[60vh] overflow-hidden">
       {renderBreadcrumb()}
-      <div className="space-y-4 overflow-y-auto flex-1 pr-1 pb-4">
+      <div className="space-y-4 overflow-y-auto flex-1 pr-2 pb-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700">
         {groups.map((group, groupIndex) => (
           <SubjectDetail key={group.code} group={group} groupIndex={groupIndex} />
         ))}
@@ -206,7 +225,7 @@ function SubjectItem({ group }: { group: SubjectGroup }) {
     dispatch({ type: 'SET_LOADING_SEARCH', payload: true })
     dispatch({ type: 'SET_ERROR_SEARCH', payload: null })
     dispatch({ type: 'SET_SEARCH_MODE', payload: 'search' })
-    
+
     // If parallels are already in searchResults, don't fetch again
     const alreadyLoaded = state.searchResults.some(r => r.codigomateria.trim().toUpperCase() === group.code.trim().toUpperCase())
     if (alreadyLoaded) {
@@ -229,9 +248,11 @@ function SubjectItem({ group }: { group: SubjectGroup }) {
   return (
     <button
       onClick={handleSelectSubject}
-      className="w-full text-left group bg-zinc-900 hover:bg-zinc-800/50 border border-zinc-800 hover:border-blue-900/50 transition-all cursor-pointer py-4 px-5 rounded-2xl flex flex-col gap-1"
+      className="w-full text-left group bg-zinc-900 hover:bg-zinc-800/50 border border-zinc-800 hover:border-blue-900/50 transition-all cursor-pointer py-4 px-5 rounded-2xl flex flex-col gap-1 relative"
     >
-      <span className="text-[10px] font-bold text-zinc-600 group-hover:text-blue-500 transition-colors uppercase tracking-widest leading-none">{group.code}</span>
+      <div className="flex justify-between items-start w-full">
+        <span className="text-[10px] font-bold text-zinc-600 group-hover:text-blue-500 transition-colors uppercase tracking-widest leading-none">{group.code}</span>
+      </div>
       <span className="text-sm font-extrabold text-white transition-colors leading-tight">{group.name}</span>
     </button>
   )
