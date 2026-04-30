@@ -96,7 +96,7 @@ export interface SchedulerState {
   loadingAvailable: boolean
   errorSearch: string | null
   studentInfo: StudentInfo | null
-  stoppedSubjects: Record<string, number>
+  stoppedSubjects: Record<string, number[]>
 }
 
 export interface StudentInfo {
