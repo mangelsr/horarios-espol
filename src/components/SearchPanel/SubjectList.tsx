@@ -233,10 +233,85 @@ function SubjectItem({ group }: { group: SubjectGroup }) {
       return
     }
 
-    dispatch({ type: 'SET_LOADING_SEARCH', payload: true })
     try {
       const { api } = await import('../../services/api')
       const results = await api.searchSubject(group.code, 1)
+
+      // Fetch the parallel details in batches of 5 to avoid overloading the server
+      for (let i = 0; i < results.length; i += 5) {
+        const batch = results.slice(i, i + 5)
+        await Promise.all(batch.map(async (parallel) => {
+          const key = `${parallel.codigomateria}-${parallel.paralelo}-${parallel.tipocurso}`
+          
+          if (state.parallelDetails[key]) return
+
+          try {
+            const [infoRes, scheduleRes, examsRes] = await Promise.allSettled([
+              api.getCourseInfo(parallel.codigomateria, parallel.paralelo),
+              api.getSubjectSchedule(parallel.codigomateria, parallel.paralelo),
+              parallel.tipoparalelo === 'TEORICO' 
+                ? api.getExamSchedule(parallel.codigomateria, parallel.paralelo)
+                : Promise.resolve([])
+            ])
+
+            const isInactive = [infoRes, scheduleRes].some(
+              res => res.status === 'rejected' && (res.reason as Error)?.message?.includes('404')
+            )
+
+            if (isInactive) {
+              dispatch({ type: 'SET_STOPPED_SUBJECT', payload: { code: parallel.codigomateria, paralelo: parallel.paralelo } })
+              return
+            }
+
+            const non404Error = [infoRes, scheduleRes].map(res => 
+              res.status === 'rejected' ? (res.reason as Error)?.message : null
+            ).find(msg => msg && !msg.includes('404'))
+
+            const info = infoRes.status === 'fulfilled' ? infoRes.value[0] ?? null : null
+            const scheduleData = scheduleRes.status === 'fulfilled' ? scheduleRes.value : []
+            const examsData = examsRes.status === 'fulfilled' ? examsRes.value : []
+
+            dispatch({
+              type: 'SET_PARALLEL_DETAIL',
+              payload: {
+                key,
+                detail: {
+                  subjectCode: parallel.codigomateria,
+                  subjectName: parallel.nombre,
+                  paralelo: parallel.paralelo,
+                  tipocurso: parallel.tipocurso as 'P' | 'G',
+                  tipoparalelo: parallel.tipoparalelo,
+                  info,
+                  schedule: scheduleData,
+                  exams: examsData,
+                  loading: false,
+                  error: non404Error || null,
+                }
+              }
+            })
+          } catch (e) {
+            dispatch({
+              type: 'SET_PARALLEL_DETAIL',
+              payload: {
+                key,
+                detail: {
+                  subjectCode: parallel.codigomateria,
+                  subjectName: parallel.nombre,
+                  paralelo: parallel.paralelo,
+                  tipocurso: parallel.tipocurso as 'P' | 'G',
+                  tipoparalelo: parallel.tipoparalelo,
+                  info: null,
+                  schedule: [],
+                  exams: [],
+                  loading: false,
+                  error: (e as Error).message,
+                }
+              }
+            })
+          }
+        }))
+      }
+
       dispatch({ type: 'SET_SEARCH_RESULTS', payload: results })
     } catch (e) {
       dispatch({ type: 'SET_ERROR_SEARCH', payload: (e as Error).message })

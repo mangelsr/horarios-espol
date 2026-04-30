@@ -37,12 +37,8 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
   const loadParallelInfo = async (parallel: SubjectResult, force = false) => {
     const key = `${parallel.codigomateria}-${parallel.paralelo}-${parallel.tipocurso}`
     // Si el curso está marcado como detenido (por un 404 previo), NO hacer nada
-    const stopParallel = state.stoppedSubjects[parallel.codigomateria]
-    if (stopParallel !== undefined) {
-      const rBase = parallel.paralelo % 100
-      const stopBase = stopParallel % 100
-      if (rBase > stopBase || (rBase === stopBase && parallel.paralelo >= stopParallel)) return
-    }
+    const stopParallelArr = state.stoppedSubjects[parallel.codigomateria]
+    if (stopParallelArr?.includes(parallel.paralelo)) return
 
     const existing = state.parallelDetails[key]
 
