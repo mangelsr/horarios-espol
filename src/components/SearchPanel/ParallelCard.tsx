@@ -45,8 +45,8 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
     // Si ya se está cargando (y no es un reintento forzado), NO hacer nada
     if (existing?.loading && !force) return
 
-    // Si ya tiene datos (info o horario) y no es forzado, NO hacer nada
-    if (!force && existing && (existing.info || existing.schedule.length > 0)) return
+    // Si ya tiene datos (info o horario) y cupos disponibles, y no es forzado, NO hacer nada
+    if (!force && existing && (existing.info || existing.schedule.length > 0) && existing.cuposDisponibles !== null) return
 
     const initial: ParallelDetail = {
       subjectCode: parallel.codigomateria,
@@ -59,22 +59,29 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
       exams: existing?.exams || [],
       loading: true,
       error: null,
+      cuposDisponibles: existing?.cuposDisponibles ?? null,
     }
 
     dispatch({ type: 'SET_PARALLEL_DETAIL', payload: { key, detail: initial } })
 
     try {
-      const [infoRes, scheduleRes, examsRes] = await Promise.allSettled([
+      const [infoRes, scheduleRes, examsRes, studentsRes] = await Promise.allSettled([
         api.getCourseInfo(parallel.codigomateria, parallel.paralelo),
         api.getSubjectSchedule(parallel.codigomateria, parallel.paralelo),
-        parallel.tipoparalelo === 'TEORICO' 
+        parallel.tipoparalelo === 'TEORICO'
           ? api.getExamSchedule(parallel.codigomateria, parallel.paralelo)
-          : Promise.resolve([])
+          : Promise.resolve([]),
+        api.getRegisteredStudents(parallel.codigomateria, parallel.paralelo),
       ])
 
       const info = infoRes.status === 'fulfilled' ? (infoRes.value[0] as CourseInfo) ?? null : (existing?.info || null)
       const scheduleData = scheduleRes.status === 'fulfilled' ? scheduleRes.value : (existing?.schedule || [])
       const examsData = examsRes.status === 'fulfilled' ? examsRes.value : (existing?.exams || [])
+      const students = studentsRes.status === 'fulfilled' ? studentsRes.value : null
+
+      const cuposDisponibles = (info && students)
+        ? Math.max(0, info.cupo_maximo - students.length)
+        : null
 
       // Detect if this parallel is inactive (404)
       const isInactive = [infoRes, scheduleRes].some(
@@ -90,7 +97,7 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
         type: 'SET_PARALLEL_DETAIL',
         payload: {
           key,
-          detail: { ...initial, info, schedule: scheduleData, exams: examsData, loading: false },
+          detail: { ...initial, info, schedule: scheduleData, exams: examsData, cuposDisponibles, loading: false },
         },
       })
     } catch (e) {
@@ -227,9 +234,19 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
           {t && <span className="text-[9px] font-black px-1.5 py-0.5 rounded text-blue-100 bg-blue-600 uppercase tracking-tighter">T</span>}
           {p && <span className="text-[9px] font-black px-1.5 py-0.5 rounded text-emerald-100 bg-emerald-600 uppercase tracking-tighter">P</span>}
         </div>
-        <span className="text-sm font-bold text-zinc-100 truncate">{title}</span>
+      <span className="text-sm font-bold text-zinc-100 truncate">{title}</span>
 
-        {loading && <span className="text-[10px] text-zinc-400 ml-2 animate-pulse font-medium italic">Cargando...</span>}
+      {loading && (tDetail?.cuposDisponibles === null && pDetail?.cuposDisponibles === null) && (
+        <span className="text-[10px] text-zinc-400 animate-pulse font-medium">Cupos...</span>
+      )}
+
+      {!loading && (tDetail?.cuposDisponibles !== null || pDetail?.cuposDisponibles !== null) && (
+        <span className="text-[10px] font-bold bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/20">
+          {tDetail?.cuposDisponibles ?? pDetail?.cuposDisponibles} cupos
+        </span>
+      )}
+
+      {loading && <span className="text-[10px] text-zinc-400 ml-2 animate-pulse font-medium italic">Cargando...</span>}
 
         <div className="ml-auto flex items-center gap-2">
           {isSelected ? (
@@ -268,9 +285,9 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
                     ))}
                   </select>
                 </div>
-              )}
-
-              {/* Detalle Teórico */}
+                )}
+              
+                {/* Detalle Teórico */}
               {t && tDetail && !tDetail.error && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-2">

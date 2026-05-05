@@ -61,4 +61,10 @@ export const api = {
     get<StudentInfo>('/api/general-info', {
       student_code: studentCode,
     }),
+
+  getRegisteredStudents: (subjectCode: string, paralelo: number) =>
+    get<any[]>('/api/registered-students', {
+      subject_code: subjectCode,
+      course: String(paralelo),
+    }),
 }

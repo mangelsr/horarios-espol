@@ -242,16 +242,17 @@ function SubjectItem({ group }: { group: SubjectGroup }) {
         const batch = results.slice(i, i + 5)
         await Promise.all(batch.map(async (parallel) => {
           const key = `${parallel.codigomateria}-${parallel.paralelo}-${parallel.tipocurso}`
-          
+
           if (state.parallelDetails[key]) return
 
           try {
-            const [infoRes, scheduleRes, examsRes] = await Promise.allSettled([
+            const [infoRes, scheduleRes, examsRes, studentsRes] = await Promise.allSettled([
               api.getCourseInfo(parallel.codigomateria, parallel.paralelo),
               api.getSubjectSchedule(parallel.codigomateria, parallel.paralelo),
-              parallel.tipoparalelo === 'TEORICO' 
+              parallel.tipoparalelo === 'TEORICO'
                 ? api.getExamSchedule(parallel.codigomateria, parallel.paralelo)
-                : Promise.resolve([])
+                : Promise.resolve([]),
+              api.getRegisteredStudents(parallel.codigomateria, parallel.paralelo),
             ])
 
             const isInactive = [infoRes, scheduleRes].some(
@@ -263,13 +264,18 @@ function SubjectItem({ group }: { group: SubjectGroup }) {
               return
             }
 
-            const non404Error = [infoRes, scheduleRes].map(res => 
+            const non404Error = [infoRes, scheduleRes].map(res =>
               res.status === 'rejected' ? (res.reason as Error)?.message : null
             ).find(msg => msg && !msg.includes('404'))
 
             const info = infoRes.status === 'fulfilled' ? infoRes.value[0] ?? null : null
             const scheduleData = scheduleRes.status === 'fulfilled' ? scheduleRes.value : []
             const examsData = examsRes.status === 'fulfilled' ? examsRes.value : []
+            const students = studentsRes.status === 'fulfilled' ? studentsRes.value : null
+
+            const cuposDisponibles = (info && students)
+              ? Math.max(0, info.cupo_maximo - students.length)
+              : null
 
             dispatch({
               type: 'SET_PARALLEL_DETAIL',
@@ -286,6 +292,7 @@ function SubjectItem({ group }: { group: SubjectGroup }) {
                   exams: examsData,
                   loading: false,
                   error: non404Error || null,
+                  cuposDisponibles,
                 }
               }
             })
@@ -305,6 +312,7 @@ function SubjectItem({ group }: { group: SubjectGroup }) {
                   exams: [],
                   loading: false,
                   error: (e as Error).message,
+                  cuposDisponibles: null,
                 }
               }
             })

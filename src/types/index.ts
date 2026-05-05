@@ -62,6 +62,7 @@ export interface ParallelDetail {
   exams: ExamSlot[]
   loading: boolean
   error: string | null
+  cuposDisponibles: number | null
 }
 
 export interface SelectedParallel {
