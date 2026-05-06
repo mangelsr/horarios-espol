@@ -14,6 +14,44 @@ interface SubjectGroup {
   units: ParallelUnit[] // Replaces flat parallels
 }
 
+function groupSubjectParallels(parallels: SubjectResult[]): ParallelUnit[] {
+  const teoricos = parallels.filter(p => p.tipoparalelo === 'TEORICO')
+  const practicos = parallels.filter(p => p.tipoparalelo === 'PRACTICO')
+
+  const units: ParallelUnit[] = []
+  const usedPracticos = new Set<string>()
+
+  for (const t of teoricos) {
+    // Sort all practicals so those matching the theoretical parallel come first
+    const associatedPracticos = [...practicos].sort((a, b) => {
+      const matchA = a.paralelo % 100 === t.paralelo
+      const matchB = b.paralelo % 100 === t.paralelo
+      if (matchA && !matchB) return -1
+      if (!matchA && matchB) return 1
+      return a.paralelo - b.paralelo
+    })
+
+    // Mark matched practicals as used so they don't appear as orphans
+    practicos
+      .filter(p => p.paralelo % 100 === t.paralelo)
+      .forEach(p => usedPracticos.add(`${p.codigomateria}-${p.paralelo}`))
+
+    units.push({
+      teorico: t,
+      practicos: associatedPracticos,
+    })
+  }
+
+  // Sort units primarily by theoretical parallel number
+  units.sort((a, b) => {
+    const p1 = a.teorico?.paralelo ?? a.practicos[0]?.paralelo ?? 0
+    const p2 = b.teorico?.paralelo ?? b.practicos[0]?.paralelo ?? 0
+    return p1 - p2
+  })
+
+  return units
+}
+
 export function SubjectList() {
   const { state, dispatch } = useScheduler()
   const [filterText, setFilterText] = useState('')
@@ -23,36 +61,10 @@ export function SubjectList() {
         const code = s.cod_materia_acad.trim().toUpperCase()
         const parallels = state.searchResults.filter(r => r.codigomateria.trim().toUpperCase() === code)
 
-        // Group theoreticals and practicals for this specific subject
-        const teoricos = parallels.filter(p => p.tipoparalelo === 'TEORICO')
-        const practicos = parallels.filter(p => p.tipoparalelo === 'PRACTICO')
-
-        const units: ParallelUnit[] = []
-        const usedPracticos = new Set<string>()
-
-        for (const t of teoricos) {
-          const associated = practicos.filter(p => p.paralelo % 100 === t.paralelo)
-          associated.forEach(p => usedPracticos.add(`${p.codigomateria}-${p.paralelo}`))
-          units.push({
-            teorico: t,
-            practicos: associated.sort((a, b) => a.paralelo - b.paralelo),
-          })
-        }
-        const orphanPracticos = practicos.filter(p => !usedPracticos.has(`${p.codigomateria}-${p.paralelo}`))
-        orphanPracticos.forEach(p => {
-          units.push({ teorico: null, practicos: [p] })
-        })
-
-        units.sort((a, b) => {
-          const p1 = a.teorico?.paralelo ?? a.practicos[0]?.paralelo ?? 0
-          const p2 = b.teorico?.paralelo ?? b.practicos[0]?.paralelo ?? 0
-          return p1 - p2
-        })
-
         return {
           code,
           name: s.nombre_materia,
-          units
+          units: groupSubjectParallels(parallels)
         }
       })
     }
@@ -83,42 +95,10 @@ export function SubjectList() {
 
     // Group theoreticals and practicals
     return Array.from(map.values()).map(group => {
-      const teoricos = group.parallels.filter(p => p.tipoparalelo === 'TEORICO')
-      const practicos = group.parallels.filter(p => p.tipoparalelo === 'PRACTICO')
-
-      const units: ParallelUnit[] = []
-      const usedPracticos = new Set<string>()
-
-      for (const t of teoricos) {
-        // Find practicals (n + 100, n + 200, etc)
-        const associated = practicos.filter(
-          p => p.paralelo % 100 === t.paralelo
-        )
-        associated.forEach(p => usedPracticos.add(`${p.codigomateria}-${p.paralelo}`))
-
-        units.push({
-          teorico: t,
-          practicos: associated.sort((a, b) => a.paralelo - b.paralelo),
-        })
-      }
-
-      // Add standalone practicals if any exist without theoretical
-      const orphanPracticos = practicos.filter(p => !usedPracticos.has(`${p.codigomateria}-${p.paralelo}`))
-      orphanPracticos.forEach(p => {
-        units.push({ teorico: null, practicos: [p] })
-      })
-
-      // Sort units by theoretical parallel number
-      units.sort((a, b) => {
-        const p1 = a.teorico?.paralelo ?? a.practicos[0]?.paralelo ?? 0
-        const p2 = b.teorico?.paralelo ?? b.practicos[0]?.paralelo ?? 0
-        return p1 - p2
-      })
-
       return {
         code: group.code,
         name: group.name,
-        units,
+        units: groupSubjectParallels(group.parallels),
       }
     })
   }, [state.searchResults, state.availableSubjects, state.searchMode])
@@ -392,7 +372,7 @@ function SubjectDetail({ group, groupIndex }: { group: SubjectGroup; groupIndex:
           <div className="space-y-2">
             {sortedUnits.map((u) => (
               <ParallelCard
-                key={`${u.teorico?.paralelo}-${u.practicos[0]?.paralelo}`}
+                key={u.teorico ? `T-${u.teorico.paralelo}` : `P-${u.practicos[0]?.paralelo}`}
                 unit={u}
                 subjectIndex={groupIndex}
               />
