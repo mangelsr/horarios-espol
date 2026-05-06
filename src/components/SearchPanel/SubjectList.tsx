@@ -55,6 +55,7 @@ function groupSubjectParallels(parallels: SubjectResult[]): ParallelUnit[] {
 export function SubjectList() {
   const { state, dispatch } = useScheduler()
   const [filterText, setFilterText] = useState('')
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const groups = useMemo<SubjectGroup[]>(() => {
     if (state.searchMode === 'available') {
       return state.availableSubjects.map(s => {
@@ -152,7 +153,7 @@ export function SubjectList() {
             dispatch({ type: 'SET_SEARCH_RESULTS', payload: [] })
             dispatch({ type: 'SET_SEARCH_QUERY', payload: '' })
           }}
-          className="cursor-pointer text-[10px] font-black bg-blue-600 hover:bg-blue-700 text-blue-50 px-3 py-1.5 rounded-lg uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95"
+          className="cursor-pointer text-[10px] font-bold bg-blue-600 hover:bg-blue-700 text-blue-50 px-3 py-1.5 rounded-lg uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95"
         >
           <span>←</span> Volver a mis materias
         </button>
@@ -163,17 +164,17 @@ export function SubjectList() {
   // Vista 1: Mostrando lista de materias (available) o resultados múltiples de búsqueda
   if (state.searchMode === 'available' || (state.searchMode === 'search' && Boolean(state.searchQuery) && groups.length > 1)) {
     return (
-      <div className="flex flex-col h-full max-h-[60vh] overflow-hidden">
+      <div className="flex flex-col h-full overflow-hidden">
         {renderBreadcrumb()}
         <div className="space-y-4 overflow-y-auto flex-1 pr-2 pb-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700">
           <div className="flex flex-col gap-2 ml-1">
-            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Mis Materias Disponibles</p>
+            {/* <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Materias Disponibles</p> */}
             <input
               type="text"
-              placeholder="Filtrar materias..."
+              placeholder="Buscar por nombre o código"
               value={filterText}
               onChange={e => setFilterText(e.target.value)}
-              className="bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-zinc-700 transition-all"
+              className="bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-all"
             />
           </div>
           {filteredGroups.map((group) => (
@@ -186,7 +187,7 @@ export function SubjectList() {
 
   // Vista 2: Mostrando paralelos de una materia específica (Search Result)
   return (
-    <div className="flex flex-col h-full max-h-[60vh] overflow-hidden">
+    <div className="flex flex-col h-full  overflow-hidden">
       {renderBreadcrumb()}
       <div className="space-y-4 overflow-y-auto flex-1 pr-2 pb-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700">
         {groups.map((group, groupIndex) => (

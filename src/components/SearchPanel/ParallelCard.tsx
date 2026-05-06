@@ -322,13 +322,13 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 text-xs text-zinc-500 space-y-4 border-t border-zinc-800 pt-4">
+        <div className="px-4 pb-4 text-xs text-zinc-500 space-y-6 border-t border-zinc-800 pt-4">
           {loading && <p className="italic text-zinc-400">Cargando información detallada...</p>}
 
           {!loading && (
             <>
               {/* Selector de práctico si hay múltiples asociados */}
-              {unit.practicos.length > 1 && (
+              {/* {unit.practicos.length > 1 && (
                 <div className="flex items-center gap-2 bg-zinc-800/50 p-2.5 rounded-xl border border-zinc-800 relative">
                   <span className="font-bold text-zinc-500 text-[10px] uppercase tracking-wider shrink-0">Cambiar Práctico:</span>
                   <div className="relative flex-1">
@@ -377,21 +377,21 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
                     )}
                   </div>
                 </div>
-              )}
+              )} */}
 
               {/* Detalle Teórico */}
               {t && tDetail && !tDetail.error && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between border-zinc-800">
                     <span className="text-blue-400 font-bold tracking-tight">Teórico</span>
-                    <span className="text-zinc-500 font-medium text-[12px]">{tDetail.info?.nombre_profesor || 'Sin profesor'}</span>
+                    <span className="text-zinc-500 font-medium text-xs">{tDetail.info?.nombre_profesor || 'Sin profesor'}</span>
                   </div>
                   <div className="space-y-1.5 pt-1">
                     {tDetail.schedule.length > 0 ? (
                       tDetail.schedule.map((s, i) => (
                         <div key={i} className="flex items-start gap-3 justify-between bg-zinc-800/30 p-2 rounded-lg border border-zinc-700/50">
-                          <span className="text-[12px] font-extrabold text-blue-400 w-8">{s.nombredia.slice(0, 3)}</span>
-                          <span className="text-zinc-300 font-mono tracking-tight text-[12px]">
+                          <span className="text-xs font-extrabold text-blue-400 w-8">{s.nombredia.slice(0, 3)}</span>
+                          <span className="text-zinc-300 font-mono tracking-tight text-xs">
                             {secondsToTime(s.horainicio)} — {secondsToTime(s.horafin)}
                           </span>
                           <span className="text-zinc-500 text-right flex-1 font-medium">{s.aula}</span>
@@ -406,17 +406,17 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
 
               {/* Detalle Práctico */}
               {p && pDetail && !pDetail.error && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between border-zinc-800">
                     <span className="text-emerald-400 font-bold tracking-tight">Práctico</span>
-                    <span className="text-zinc-500 font-medium text-[12px]">{pDetail.info?.nombre_profesor || 'Sin profesor'}</span>
+                    <span className="text-zinc-500 font-medium text-xs">{pDetail.info?.nombre_profesor || 'Sin profesor'}</span>
                   </div>
                   <div className="space-y-1.5 pt-1">
                     {pDetail.schedule.length > 0 ? (
                       pDetail.schedule.map((s, i) => (
                         <div key={i} className="flex items-start gap-3 justify-between bg-zinc-800/30 p-2 rounded-lg border border-zinc-700/50">
-                          <span className="text-[12px] font-extrabold text-emerald-400 w-8">{s.nombredia.slice(0, 3)}</span>
-                          <span className="text-zinc-300 font-mono tracking-tight text-[12px]">
+                          <span className="text-xs font-extrabold text-emerald-400 w-8">{s.nombredia.slice(0, 3)}</span>
+                          <span className="text-zinc-300 font-mono tracking-tight text-xs">
                             {secondsToTime(s.horainicio)} — {secondsToTime(s.horafin)}
                           </span>
                           <span className="text-zinc-500 text-right flex-1 font-medium">{s.aula}</span>
@@ -435,7 +435,7 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
               )}
 
               {/* Exámenes Combinados */}
-              {combinedExams.length > 0 && (
+              {/* {combinedExams.length > 0 && (
                 <div className="pt-3 border-t border-zinc-800">
                   <p className="text-white font-bold mb-2 tracking-tight">Fechas de Exámenes</p>
                   <div className="space-y-1.5">
@@ -448,9 +448,9 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
                       }
                       return (
                         <div key={i} className="flex items-center gap-4 justify-between bg-indigo-500/10 p-2 rounded-lg border-l-2 border-indigo-500">
-                          <span className="text-[12px] font-bold text-indigo-400 w-fit uppercase">{dateStr}</span>
+                          <span className="text-xs font-bold text-indigo-400 w-fit uppercase">{dateStr}</span>
                           {e.horainicio !== undefined && e.horafin !== undefined && (
-                            <span className="text-zinc-300 font-mono text-[12px]">
+                            <span className="text-zinc-300 font-mono text-xs">
                               {secondsToTime(e.horainicio as number)} — {secondsToTime(e.horafin as number)}
                             </span>
                           )}
@@ -460,7 +460,7 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
                     })}
                   </div>
                 </div>
-              )}
+              )} */}
 
               {/* Conflictos */}
               {isSubjectAlreadySelected && (
@@ -495,7 +495,7 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
                 ) : (
                   <button
                     onClick={handleRemove}
-                    className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-red-500 rounded-xl font-bold w-full transition-all border border-red-500/20 active:scale-[0.98]"
+                    className="px-6 py-3 bg-red-900 hover:bg-zinc-700 text-red-300 rounded-xl font-bold w-full transition-all border border-red-500/80 active:scale-[0.98] text-sm"
                   >
                     Quitar del horario
                   </button>

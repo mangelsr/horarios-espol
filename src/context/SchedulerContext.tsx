@@ -19,6 +19,19 @@ const initialState: SchedulerState = {
 // --- Reducer ---
 function schedulerReducer(state: SchedulerState, action: SchedulerAction): SchedulerState {
   switch (action.type) {
+    case 'RESET_FOR_NEW_STUDENT':
+      return {
+        ...state,
+        selectedParallels: [],
+        searchResults: [],
+        availableSubjects: [],
+        parallelDetails: {},
+        searchQuery: '',
+        searchMode: 'search',
+        errorSearch: null,
+        studentInfo: null,
+        stoppedSubjects: {},
+      }
     case 'SET_SEARCH_RESULTS':
       const filtered = action.payload.filter(r => {
         const stoppedArr = state.stoppedSubjects[r.codigomateria] || []
