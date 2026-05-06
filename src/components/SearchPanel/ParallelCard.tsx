@@ -150,13 +150,71 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
     setExpanded(prev => !prev)
   }
 
+  const [showOptions, setShowOptions] = useState(false)
+
+  const getPracticoStatus = (pr: SubjectResult) => {
+    const prKey = `${pr.codigomateria}-${pr.paralelo}-${pr.tipocurso}`
+    const isPrSelected = state.selectedParallels.some(sel => sel.id === prKey)
+
+    if (isPrSelected) return { type: 'agregado', label: 'AGREGADO' }
+
+    const prDetail = state.parallelDetails[prKey]
+    if (prDetail && !prDetail.loading && prDetail.schedule.length > 0) {
+      const combined = [...(tDetail?.schedule ?? []), ...prDetail.schedule]
+      // Check conflict against everything EXCEPT this subject's parallels
+      const otherSelected = state.selectedParallels.filter(sel => sel.subjectCode !== pr.codigomateria)
+      if (hasTimeConflict(combined, otherSelected)) {
+        return { type: 'cruce', label: 'CRUCE' }
+      }
+    }
+    return null
+  }
+
   const handlePracticoChange = (id: string) => {
+    const oldPKey = pKey
     setSelectedPracticoId(id)
+
     const newP = unit.practicos.find(pr => `${pr.codigomateria}-${pr.paralelo}-${pr.tipocurso}` === id)
     if (newP && expanded) {
       loadParallelInfo(newP)
     }
+    setShowOptions(false)
+
+    // If the current practical is already in the schedule, swap it with the new one
+    if (oldPKey && state.selectedParallels.some(sel => sel.id === oldPKey)) {
+      dispatch({ type: 'REMOVE_PARALLEL', payload: oldPKey })
+
+      const newPKey = id
+      const newPDetail = state.parallelDetails[newPKey]
+      // Only add if we have the info ready (usually prefetched)
+      if (newPDetail && !newPDetail.loading && newPDetail.info) {
+        const color = getSubjectColor(subjectIndex)
+        dispatch({
+          type: 'ADD_PARALLEL',
+          payload: {
+            id: newPKey,
+            subjectCode: newPDetail.subjectCode,
+            subjectName: newPDetail.subjectName,
+            paralelo: newPDetail.paralelo,
+            tipocurso: newPDetail.tipocurso,
+            tipoparalelo: newPDetail.tipoparalelo,
+            info: newPDetail.info,
+            schedule: newPDetail.schedule,
+            exams: newPDetail.exams,
+            color,
+          },
+        })
+      }
+    }
   }
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    if (!showOptions) return
+    const handler = () => setShowOptions(false)
+    window.addEventListener('click', handler)
+    return () => window.removeEventListener('click', handler)
+  }, [showOptions])
 
   const combinedSchedule = [...(tDetail?.schedule ?? []), ...(pDetail?.schedule ?? [])]
   const combinedExams = [...(tDetail?.exams ?? []), ...(pDetail?.exams ?? [])]
@@ -234,19 +292,19 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
           {t && <span className="text-[9px] font-black px-1.5 py-0.5 rounded text-blue-100 bg-blue-600 uppercase tracking-tighter">T</span>}
           {p && <span className="text-[9px] font-black px-1.5 py-0.5 rounded text-emerald-100 bg-emerald-600 uppercase tracking-tighter">P</span>}
         </div>
-      <span className="text-sm font-bold text-zinc-100 truncate">{title}</span>
+        <span className="text-sm font-bold text-zinc-100 truncate">{title}</span>
 
-      {loading && (tDetail?.cuposDisponibles === null && pDetail?.cuposDisponibles === null) && (
-        <span className="text-[10px] text-zinc-400 animate-pulse font-medium">Cupos...</span>
-      )}
+        {loading && (tDetail?.cuposDisponibles === null && pDetail?.cuposDisponibles === null) && (
+          <span className="text-[10px] text-zinc-400 animate-pulse font-medium">Cupos...</span>
+        )}
 
-      {!loading && (tDetail?.cuposDisponibles !== null || pDetail?.cuposDisponibles !== null) && (
-        <span className="text-[10px] font-bold bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/20">
-          {tDetail?.cuposDisponibles ?? pDetail?.cuposDisponibles} cupos
-        </span>
-      )}
+        {!loading && (tDetail?.cuposDisponibles !== null || pDetail?.cuposDisponibles !== null) && (
+          <span className="text-[10px] font-bold bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/20">
+            {tDetail?.cuposDisponibles ?? pDetail?.cuposDisponibles} cupos
+          </span>
+        )}
 
-      {loading && <span className="text-[10px] text-zinc-400 ml-2 animate-pulse font-medium italic">Cargando...</span>}
+        {loading && <span className="text-[10px] text-zinc-400 ml-2 animate-pulse font-medium italic">Cargando...</span>}
 
         <div className="ml-auto flex items-center gap-2">
           {isSelected ? (
@@ -271,23 +329,57 @@ export function ParallelCard({ unit, subjectIndex }: Props) {
             <>
               {/* Selector de práctico si hay múltiples asociados */}
               {unit.practicos.length > 1 && (
-                <div className="flex items-center gap-2 bg-zinc-800/50 p-2.5 rounded-xl border border-zinc-800">
-                  <span className="font-bold text-zinc-500 text-[10px] uppercase tracking-wider">Cambiar Práctico:</span>
-                  <select
-                    value={selectedPracticoId ?? ''}
-                    onChange={e => handlePracticoChange(e.target.value)}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 outline-none text-zinc-100 font-medium focus:ring-2 focus:ring-blue-500/20 transition-all text-[11px]"
-                  >
-                    {unit.practicos.map(pr => (
-                      <option key={`${pr.codigomateria}-${pr.paralelo}-${pr.tipocurso}`} value={`${pr.codigomateria}-${pr.paralelo}-${pr.tipocurso}`}>
-                        Paralelo {pr.paralelo}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex items-center gap-2 bg-zinc-800/50 p-2.5 rounded-xl border border-zinc-800 relative">
+                  <span className="font-bold text-zinc-500 text-[10px] uppercase tracking-wider shrink-0">Cambiar Práctico:</span>
+                  <div className="relative flex-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowOptions(!showOptions)
+                      }}
+                      className="w-full flex items-center justify-between bg-zinc-900 border border-zinc-700 hover:border-zinc-600 rounded-lg px-3 py-1.5 text-zinc-100 font-medium transition-all text-[11px] group"
+                    >
+                      <span className="truncate">Paralelo {p.paralelo}</span>
+                      <span className={`text-[10px] text-zinc-500 group-hover:text-zinc-300 transition-transform duration-200 ${showOptions ? 'rotate-180' : ''}`}>▼</span>
+                    </button>
+
+                    {showOptions && (
+                      <div
+                        className="absolute bottom-full left-0 right-0 mb-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-[100] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <div className="max-h-48 overflow-y-auto py-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:rounded-full">
+                          {unit.practicos.map(pr => {
+                            const prId = `${pr.codigomateria}-${pr.paralelo}-${pr.tipocurso}`
+                            const status = getPracticoStatus(pr)
+                            const isCurrent = prId === selectedPracticoId
+
+                            return (
+                              <button
+                                key={prId}
+                                onClick={() => handlePracticoChange(prId)}
+                                className={`w-full flex items-center justify-between px-3 py-2 text-left hover:bg-zinc-800 transition-colors ${isCurrent ? 'bg-blue-500/5 text-blue-400' : 'text-zinc-300'}`}
+                              >
+                                <span className={`text-[11px] font-bold ${isCurrent ? 'text-blue-400' : ''}`}>
+                                  Paralelo {pr.paralelo}
+                                </span>
+                                {status && (
+                                  <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${status.type === 'agregado' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                    }`}>
+                                    {status.label}
+                                  </span>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                )}
-              
-                {/* Detalle Teórico */}
+              )}
+
+              {/* Detalle Teórico */}
               {t && tDetail && !tDetail.error && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-2">

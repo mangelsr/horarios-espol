@@ -67,11 +67,9 @@ function schedulerReducer(state: SchedulerState, action: SchedulerAction): Sched
       return { ...state, selectedParallels: [...state.selectedParallels, action.payload] }
     }
     case 'REMOVE_PARALLEL': {
-      const pToRemove = state.selectedParallels.find(p => p.id === action.payload)
-      if (!pToRemove) return state
       return {
         ...state,
-        selectedParallels: state.selectedParallels.filter(p => p.subjectCode !== pToRemove.subjectCode),
+        selectedParallels: state.selectedParallels.filter(p => p.id !== action.payload),
       }
     }
     case 'CLEAR_ALL':
